@@ -8,17 +8,28 @@ export class WeaviateVectorDB implements VectorDatabase {
   constructor(url: string, apiKey?: string) {
     this.className = 'Document';
     
-    this.client = weaviate.client({
-      scheme: 'http',
-      host: url.replace('http://', '').replace('https://', ''),
-      apiKey: apiKey ? new ApiKey(apiKey) : undefined,
-    });
+    const urlObj = new URL(url);
+    const scheme = urlObj.protocol.replace(':', '');
+    const host = urlObj.host;
+    
+    if (apiKey && apiKey.trim() !== '') {
+      this.client = weaviate.client({
+        scheme: scheme as 'http' | 'https',
+        host: host,
+        apiKey: new ApiKey(apiKey),
+      });
+    } else {
+      this.client = weaviate.client({
+        scheme: scheme as 'http' | 'https',
+        host: host,
+      });
+    }
   }
 
   async initialize(): Promise<void> {
     try {
-      // Check if class exists, if not create it
-      const classExists = await this.client.schema.exists().do();
+      const classExists = await this.client.schema.exists(this.className);
+      
       if (!classExists) {
         await this.createSchema();
       }

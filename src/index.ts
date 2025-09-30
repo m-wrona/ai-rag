@@ -31,7 +31,8 @@ async function initializeServices() {
     const weaviateUrl = process.env.WEAVIATE_URL || 'http://localhost:8080';
     const weaviateApiKey = process.env.WEAVIATE_API_KEY;
     
-    vectorDB = new WeaviateVectorDB(weaviateUrl, weaviateApiKey);
+    // Only pass apiKey if it's actually provided and not empty
+    vectorDB = new WeaviateVectorDB(weaviateUrl, weaviateApiKey?.trim() || undefined);
     await vectorDB.initialize();
     console.log('✅ Weaviate initialized');
 
