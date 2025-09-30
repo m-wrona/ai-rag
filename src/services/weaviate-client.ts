@@ -72,8 +72,8 @@ export class WeaviateVectorDB implements VectorDatabase {
         },
         {
           name: 'metadata',
-          dataType: ['object'],
-          description: 'Additional metadata as JSON object',
+          dataType: ['text'],
+          description: 'Additional metadata as JSON string',
         },
       ],
     };
@@ -93,7 +93,7 @@ export class WeaviateVectorDB implements VectorDatabase {
           source: document.metadata.source || '',
           type: document.metadata.type || '',
           createdAt: document.metadata.createdAt.toISOString(),
-          metadata: document.metadata,
+          metadata: JSON.stringify(document.metadata),
         })
         .withVector(embedding)
         .withId(document.id)
@@ -128,7 +128,7 @@ export class WeaviateVectorDB implements VectorDatabase {
             source: doc.source,
             type: doc.type,
             createdAt: new Date(doc.createdAt),
-            ...doc.metadata,
+            ...JSON.parse(doc.metadata || '{}'),
           },
         },
         score: 1 - (doc._additional.distance || 0), // Convert distance back to similarity score
@@ -158,6 +158,8 @@ export class WeaviateVectorDB implements VectorDatabase {
 
       if (!result) return null;
 
+      const metadata = JSON.parse(result.properties.metadata || '{}');
+
       return {
         id: result.id,
         content: result.properties.content,
@@ -166,7 +168,7 @@ export class WeaviateVectorDB implements VectorDatabase {
           source: result.properties.source,
           type: result.properties.type,
           createdAt: new Date(result.properties.createdAt),
-          ...result.properties.metadata,
+          ...metadata,
         },
       };
     } catch (error) {
