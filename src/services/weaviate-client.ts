@@ -112,7 +112,7 @@ export class WeaviateVectorDB implements VectorDatabase {
         .withFields('content title source type createdAt metadata _additional { id distance }')
         .withNearVector({
           vector: queryEmbedding,
-          distance: 1 - threshold, // Convert similarity threshold to distance
+          distance: threshold, // Use threshold directly as distance
         })
         .withLimit(limit)
         .do();

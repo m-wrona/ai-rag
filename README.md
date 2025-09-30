@@ -178,15 +178,3 @@ bun run build    # Build for production
 bun run start    # Start production build
 bun run test     # Run tests
 ```
-
-### Adding New Vector Database Backends
-
-The project is designed to be extensible. To add a new vector database backend:
-
-1. Implement the `VectorDatabase` interface in `src/types/index.ts`
-2. Create a new service class in `src/services/`
-3. Update the initialization in `src/index.ts`
-
-## License
-
-MIT License - see LICENSE file for details.
