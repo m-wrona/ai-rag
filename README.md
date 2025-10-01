@@ -178,3 +178,4 @@ bun run build    # Build for production
 bun run start    # Start production build
 bun run test     # Run tests
 ```
+
