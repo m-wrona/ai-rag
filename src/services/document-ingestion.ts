@@ -1,10 +1,13 @@
 import { Document, VectorDatabase, EmbeddingProvider } from '../types/index.js';
 import { v4 as uuidv4 } from 'uuid';
+import { chunkDocument, DocumentChunk } from '../utils/chunking.js';
+import { ContextualRetrievalService } from './context-service.js';
 
 export class DocumentIngestionService {
   constructor(
     private vectorDB: VectorDatabase,
-    private embeddingService: EmbeddingProvider
+    private embeddingService: EmbeddingProvider,
+    private contextService?: ContextualRetrievalService // Optional for contextual retrieval
   ) {}
 
   async ingestDocument(
@@ -73,6 +76,128 @@ export class DocumentIngestionService {
       return documentIds;
     } catch (error) {
       console.error('Failed to ingest documents:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Ingest document with Contextual Retrieval
+   * This implements the approach from: https://www.anthropic.com/engineering/contextual-retrieval
+   * 
+   * Steps:
+   * 1. Chunk the document
+   * 2. Generate context for each chunk using OpenAI
+   * 3. Prepend context to chunks (Contextual Embeddings)
+   * 4. Generate embeddings for contextualized chunks
+   * 5. Store in vector DB (which will also use BM25 via hybrid search = Contextual BM25)
+   * 
+   * @param content - The full document content
+   * @param metadata - Document metadata
+   * @param options - Chunking and contextualization options
+   * @returns Array of chunk IDs
+   */
+  async ingestDocumentWithContextualRetrieval(
+    content: string,
+    metadata: Partial<Document['metadata']> = {},
+    options: {
+      chunkSize?: number;
+      overlap?: number;
+      useContextual?: boolean;
+      useRateLimit?: boolean;
+      batchSize?: number;
+    } = {}
+  ): Promise<string[]> {
+    const {
+      chunkSize = 800,
+      overlap = 100,
+      useContextual = true,
+      useRateLimit = false,
+      batchSize = 10,
+    } = options;
+
+    if (!this.contextService && useContextual) {
+      console.warn('ContextualRetrievalService not provided. Falling back to standard chunking.');
+    }
+
+    const parentDocumentId = uuidv4();
+
+    try {
+      // Step 1: Chunk the document
+      console.log(`Chunking document (size: ${content.length} chars)...`);
+      const chunks: DocumentChunk[] = chunkDocument(content, chunkSize, overlap);
+      console.log(`Created ${chunks.length} chunks`);
+      
+      // Step 2: Generate context for each chunk (if enabled and service available)
+      let contextualizedChunks = chunks.map(c => c.content);
+      let contexts: string[] = [];
+      
+      if (useContextual && this.contextService) {
+        console.log('Generating contextual information for chunks...');
+        
+        if (useRateLimit) {
+          contexts = await this.contextService.generateContextsWithRateLimit(
+            content,
+            chunks.map(c => c.content),
+            metadata,
+            batchSize
+          );
+        } else {
+          contexts = await this.contextService.generateContextsForChunks(
+            content,
+            chunks.map(c => c.content),
+            metadata
+          );
+        }
+        
+        // Prepend context to each chunk
+        contextualizedChunks = chunks.map((chunk, i) => {
+          const context = contexts[i] || '';
+          return context ? `${context}\n\n${chunk.content}` : chunk.content;
+        });
+        
+        console.log('Successfully contextualized all chunks');
+      }
+      
+      // Step 3: Generate embeddings for contextualized chunks
+      console.log('Generating embeddings for chunks...');
+      const embeddings = await this.embeddingService.generateEmbeddings(
+        contextualizedChunks
+      );
+      
+      // Step 4: Store each chunk with full metadata
+      console.log('Storing chunks in vector database...');
+      const chunkIds: string[] = [];
+      
+      for (let i = 0; i < chunks.length; i++) {
+        const chunkId = uuidv4();
+        const document: Document = {
+          id: chunkId,
+          content: contextualizedChunks[i], // Store WITH context prepended
+          metadata: {
+            title: metadata.title || 'Untitled Document',
+            source: metadata.source || 'unknown',
+            type: metadata.type || 'text',
+            createdAt: new Date(),
+            // Chunk-specific metadata
+            isChunk: true,
+            parentDocumentId,
+            chunkIndex: chunks[i].chunkIndex,
+            originalContent: chunks[i].content, // Original without context
+            contextualPrefix: contexts[i] || '', // The generated context
+            ...metadata,
+          },
+        };
+        
+        await this.vectorDB.addDocument(document, embeddings[i]);
+        chunkIds.push(chunkId);
+      }
+      
+      console.log(
+        `Successfully ingested document as ${chunkIds.length} ${useContextual ? 'contextualized' : 'standard'} chunks`
+      );
+      return chunkIds;
+    } catch (error) {
+      console.error('Failed to ingest document with contextual retrieval:', error);
       throw error;
     }
   }

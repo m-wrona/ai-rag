@@ -6,6 +6,7 @@ import { OpenAIEmbeddingService } from './services/embedding-service.js';
 import { DocumentIngestionService } from './services/document-ingestion.js';
 import { RetrievalService } from './services/retrieval-service.js';
 import { RAGService } from './services/rag-service.js';
+import { ContextualRetrievalService } from './services/context-service.js';
 import { Document, RAGQuery } from './types/index.js';
 
 // Load environment variables
@@ -21,6 +22,7 @@ app.use(express.json());
 // Initialize services
 let vectorDB: WeaviateVectorDB;
 let embeddingService: OpenAIEmbeddingService;
+let contextService: ContextualRetrievalService | undefined;
 let documentIngestion: DocumentIngestionService;
 let retrievalService: RetrievalService;
 let ragService: RAGService;
@@ -45,8 +47,19 @@ async function initializeServices() {
     embeddingService = new OpenAIEmbeddingService(openaiApiKey);
     console.log('✅ OpenAI Embedding service initialized');
 
+    // Initialize contextual retrieval service (optional)
+    // Only initialize if explicitly enabled via environment variable
+    if (process.env.ENABLE_CONTEXTUAL_RETRIEVAL === 'true') {
+      contextService = new ContextualRetrievalService(openaiApiKey, {
+        model: process.env.CONTEXT_MODEL || 'gpt-4o-mini',
+        maxTokens: parseInt(process.env.CONTEXT_MAX_TOKENS || '100'),
+        temperature: parseFloat(process.env.CONTEXT_TEMPERATURE || '0.3'),
+      });
+      console.log('✅ Contextual Retrieval service initialized');
+    }
+
     // Initialize other services
-    documentIngestion = new DocumentIngestionService(vectorDB, embeddingService);
+    documentIngestion = new DocumentIngestionService(vectorDB, embeddingService, contextService);
     retrievalService = new RetrievalService(vectorDB, embeddingService);
     ragService = new RAGService(retrievalService, openaiApiKey);
     
@@ -92,6 +105,38 @@ app.post('/documents/batch', async (req, res) => {
   } catch (error) {
     console.error('Error ingesting documents:', error);
     res.status(500).json({ error: 'Failed to ingest documents' });
+  }
+});
+
+// Contextual Retrieval endpoint - chunks and contextualizes document
+app.post('/documents/contextual', async (req, res) => {
+  try {
+    const { content, metadata, options } = req.body;
+    
+    if (!content) {
+      return res.status(400).json({ error: 'Content is required' });
+    }
+
+    if (!contextService) {
+      return res.status(400).json({ 
+        error: 'Contextual retrieval not enabled. Set ENABLE_CONTEXTUAL_RETRIEVAL=true in environment' 
+      });
+    }
+
+    const chunkIds = await documentIngestion.ingestDocumentWithContextualRetrieval(
+      content, 
+      metadata,
+      options
+    );
+    
+    res.json({ 
+      chunkIds, 
+      chunkCount: chunkIds.length,
+      message: 'Document ingested with contextual retrieval successfully' 
+    });
+  } catch (error) {
+    console.error('Error ingesting document with contextual retrieval:', error);
+    res.status(500).json({ error: 'Failed to ingest document with contextual retrieval' });
   }
 });
 

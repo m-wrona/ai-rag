@@ -6,6 +6,12 @@ export interface Document {
     source?: string;
     type?: string;
     createdAt: Date;
+    // Chunking-related metadata
+    isChunk?: boolean;
+    parentDocumentId?: string;
+    chunkIndex?: number;
+    originalContent?: string; // Content without contextual prefix
+    contextualPrefix?: string; // The generated context
     [key: string]: any;
   };
 }
@@ -29,6 +35,7 @@ export interface RAGResponse {
 
 export interface EmbeddingProvider {
   generateEmbedding(text: string): Promise<number[]>;
+  generateEmbeddings(texts: string[]): Promise<number[][]>;
 }
 
 export interface VectorDatabase {
