@@ -104,35 +104,75 @@ export class WeaviateVectorDB implements VectorDatabase {
     }
   }
 
-  async searchSimilar(queryEmbedding: number[], limit: number, threshold: number = 0.7): Promise<SearchResult[]> {
+  async searchSimilar(
+    queryEmbedding: number[], 
+    limit: number, 
+    threshold: number = 0.7, 
+    queryText?: string,
+    alpha: number = 0.5
+  ): Promise<SearchResult[]> {
     try {
-      const result = await this.client.graphql
-        .get()
-        .withClassName(this.className)
-        .withFields('content title source type createdAt metadata _additional { id distance }')
-        .withNearVector({
-          vector: queryEmbedding,
-          distance: threshold, // Use threshold directly as distance
-        })
-        .withLimit(limit)
-        .do();
+      // Use hybrid search if queryText is provided, otherwise fall back to vector search
+      if (queryText) {
+        const result = await this.client.graphql
+          .get()
+          .withClassName(this.className)
+          .withFields('content title source type createdAt metadata _additional { id score }')
+          .withHybrid({
+            query: queryText,
+            vector: queryEmbedding,
+            alpha: alpha, // 0 = pure BM25, 1 = pure vector, 0.5 = balanced
+            properties: ['content', 'title'], // Fields to search with BM25
+          })
+          .withLimit(limit)
+          .do();
 
-      const documents = result.data.Get[this.className] || [];
-      
-      return documents.map((doc: any) => ({
-        document: {
-          id: doc._additional.id,
-          content: doc.content,
-          metadata: {
-            title: doc.title,
-            source: doc.source,
-            type: doc.type,
-            createdAt: new Date(doc.createdAt),
-            ...JSON.parse(doc.metadata || '{}'),
+        const documents = result.data.Get[this.className] || [];
+        
+        return documents.map((doc: any) => ({
+          document: {
+            id: doc._additional.id,
+            content: doc.content,
+            metadata: {
+              title: doc.title,
+              source: doc.source,
+              type: doc.type,
+              createdAt: new Date(doc.createdAt),
+              ...JSON.parse(doc.metadata || '{}'),
+            },
           },
-        },
-        score: 1 - (doc._additional.distance || 0), // Convert distance back to similarity score
-      }));
+          score: doc._additional.score || 0, // Hybrid search returns score directly
+        }));
+      } else {
+        // Fallback to pure vector search
+        const result = await this.client.graphql
+          .get()
+          .withClassName(this.className)
+          .withFields('content title source type createdAt metadata _additional { id distance }')
+          .withNearVector({
+            vector: queryEmbedding,
+            distance: threshold,
+          })
+          .withLimit(limit)
+          .do();
+
+        const documents = result.data.Get[this.className] || [];
+        
+        return documents.map((doc: any) => ({
+          document: {
+            id: doc._additional.id,
+            content: doc.content,
+            metadata: {
+              title: doc.title,
+              source: doc.source,
+              type: doc.type,
+              createdAt: new Date(doc.createdAt),
+              ...JSON.parse(doc.metadata || '{}'),
+            },
+          },
+          score: 1 - (doc._additional.distance || 0),
+        }));
+      }
     } catch (error) {
       console.error('Failed to search in Weaviate:', error);
       throw error;

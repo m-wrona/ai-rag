@@ -11,11 +11,13 @@ export class RetrievalService {
       // Generate embedding for the query
       const queryEmbedding = await this.embeddingService.generateEmbedding(query.query);
       
-      // Search for similar documents
+      // Search for similar documents using hybrid search
       const results = await this.vectorDB.searchSimilar(
         queryEmbedding,
         query.limit || 5,
-        query.threshold || 0.7
+        query.threshold || 0.7,
+        query.query, // Pass the query text for BM25
+        0.5 // alpha: 0.5 = balanced between keyword and semantic search
       );
       
       return results;

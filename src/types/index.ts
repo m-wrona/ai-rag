@@ -33,7 +33,7 @@ export interface EmbeddingProvider {
 
 export interface VectorDatabase {
   addDocument(document: Document, embedding: number[]): Promise<void>;
-  searchSimilar(queryEmbedding: number[], limit: number, threshold?: number): Promise<SearchResult[]>;
+  searchSimilar(queryEmbedding: number[], limit: number, threshold?: number, queryText?: string, alpha?: number): Promise<SearchResult[]>;
   deleteDocument(id: string): Promise<void>;
   getDocument(id: string): Promise<Document | null>;
 }
