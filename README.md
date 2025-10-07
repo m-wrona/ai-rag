@@ -96,7 +96,7 @@ bun run start
 # Health check
 curl http://localhost:3000/health
 
-# Ingest a document
+# Standard document ingestion
 curl -X POST http://localhost:3000/documents \
   -H "Content-Type: application/json" \
   -d '{
@@ -117,9 +117,49 @@ curl -X POST http://localhost:3000/query \
   }'
 ```
 
+### 6. (Optional) Enable Contextual Retrieval for Better Accuracy
+
+For improved retrieval accuracy, enable contextual retrieval:
+
+```bash
+# Add to .env file
+echo "ENABLE_CONTEXTUAL_RETRIEVAL=true" >> .env
+
+# Restart the server
+bun run dev
+
+# Use contextual ingestion endpoint
+curl -X POST http://localhost:3000/documents/contextual \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Your long document here...",
+    "metadata": {"title": "Document Title"},
+    "options": {"chunkSize": 800, "overlap": 100, "useContextual": true}
+  }'
+```
+
+See the [Contextual Retrieval](#contextual-retrieval) section below for detailed usage.
+
 ## Contextual Retrieval
 
 This project implements [Anthropic's Contextual Retrieval](https://www.anthropic.com/engineering/contextual-retrieval) technique using OpenAI instead of Claude.
+
+### Quick Start
+
+```bash
+# 1. Enable in .env
+ENABLE_CONTEXTUAL_RETRIEVAL=true
+
+# 2. Ingest document with contextual retrieval
+curl -X POST http://localhost:3000/documents/contextual \
+  -H "Content-Type: application/json" \
+  -d '{"content":"Your document text...","metadata":{"title":"Doc Title"},"options":{"useContextual":true}}'
+
+# 3. Query as usual
+curl -X POST http://localhost:3000/query \
+  -H "Content-Type: application/json" \
+  -d '{"query":"Your question here","limit":3}'
+```
 
 ### How It Works
 
@@ -146,21 +186,27 @@ The company's revenue grew by 3% over the previous quarter.
 
 ### Using Contextual Retrieval
 
-Enable it in your `.env`:
+#### Step 1: Enable in Environment
+
+Edit your `.env` file:
 ```env
 ENABLE_CONTEXTUAL_RETRIEVAL=true
+CONTEXT_MODEL=gpt-4o-mini
+CONTEXT_MAX_TOKENS=100
+CONTEXT_TEMPERATURE=0.3
 ```
 
-Then use the contextual endpoint:
+#### Step 2: Ingest Document with Contextual Retrieval
 
 ```bash
 curl -X POST http://localhost:3000/documents/contextual \
   -H "Content-Type: application/json" \
   -d '{
-    "content": "Your long document content here...",
+    "content": "ACME Corporation Q2 2023 Report\n\nExecutive Summary:\nACME Corporation demonstrated strong performance in Q2 2023. The cloud services division led growth with a 15% increase in revenue.\n\nFinancial Results:\nTotal revenue for Q2 2023 reached $450 million, up from $420 million in Q1 2023. This represents a 7% quarter-over-quarter growth. Operating expenses increased to $320 million due to expanded R&D investments in artificial intelligence.\n\nProduct Launches:\nDuring the quarter, we launched ACME AI Platform 3.0, featuring advanced machine learning capabilities and improved security features for enterprise customers.",
     "metadata": {
-      "title": "Annual Report 2023",
-      "source": "SEC filing"
+      "title": "ACME Q2 2023 Report",
+      "source": "Financial Reports",
+      "type": "quarterly_report"
     },
     "options": {
       "chunkSize": 800,
@@ -169,6 +215,76 @@ curl -X POST http://localhost:3000/documents/contextual \
     }
   }'
 ```
+
+**Response:**
+```json
+{
+  "chunkIds": ["uuid-1", "uuid-2", "uuid-3"],
+  "chunkCount": 3,
+  "message": "Document ingested with contextual retrieval successfully"
+}
+```
+
+#### Step 3: Query with RAG
+
+Now query the ingested document:
+
+```bash
+curl -X POST http://localhost:3000/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "What was ACME's Q2 2023 revenue and how does it compare to Q1?",
+    "limit": 3
+  }'
+```
+
+**Response:**
+```json
+{
+  "answer": "ACME Corporation's Q2 2023 revenue was $450 million, which represents a 7% increase compared to Q1 2023 revenue of $420 million. This $30 million increase demonstrates strong quarter-over-quarter growth.",
+  "sources": [
+    {
+      "document": {
+        "content": "Context: This section discusses ACME Corporation's Q2 2023 financial performance...\n\nTotal revenue for Q2 2023 reached $450 million, up from $420 million in Q1 2023...",
+        "metadata": {
+          "title": "ACME Q2 2023 Report",
+          "isChunk": true,
+          "chunkIndex": 1
+        }
+      },
+      "score": 0.89
+    }
+  ],
+  "query": "What was ACME's Q2 2023 revenue and how does it compare to Q1?"
+}
+```
+
+#### Step 4: Search for Similar Documents
+
+```bash
+curl -X POST http://localhost:3000/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "cloud services revenue growth",
+    "limit": 5,
+    "threshold": 0.7
+  }'
+```
+
+### Complete Example with Comparison
+
+See the complete example comparing standard vs contextual retrieval:
+
+```bash
+# Run the example script
+bun run src/examples/contextual-retrieval-example.ts
+```
+
+This will show you:
+- Ingestion time comparison
+- Chunk inspection
+- Retrieval accuracy differences
+- Performance metrics
 
 ### Performance
 
