@@ -286,6 +286,21 @@ This will show you:
 - Retrieval accuracy differences
 - Performance metrics
 
+### Storage Strategy
+
+**Important:** When using contextual retrieval, **only the chunks are stored**, not the original document. This prevents redundancy and saves storage space.
+
+- ✅ Chunks contain all necessary information (original content + context)
+- ✅ No duplication - efficient storage
+- ✅ `parentDocumentId` links related chunks together
+- ✅ `originalContent` in metadata preserves the un-contextualized chunk if needed
+
+If you need to store the original document for other purposes (e.g., display, download), you should:
+1. Store it separately in your application database, OR
+2. Use `ingestDocument()` for the full text AND `ingestDocumentWithContextualRetrieval()` for searchable chunks
+
+**Recommended approach:** Only store chunks. They contain everything needed for retrieval and can be assembled for display if needed.
+
 ### Performance
 
 Based on Anthropic's research:

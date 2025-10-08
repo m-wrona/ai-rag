@@ -84,6 +84,10 @@ export class DocumentIngestionService {
    * Ingest document with Contextual Retrieval
    * This implements the approach from: https://www.anthropic.com/engineering/contextual-retrieval
    * 
+   * IMPORTANT: This method ONLY stores the chunks, not the original document.
+   * This prevents storage duplication and is the recommended approach.
+   * Each chunk contains all necessary information (original content + context).
+   * 
    * Steps:
    * 1. Chunk the document
    * 2. Generate context for each chunk using OpenAI
@@ -91,10 +95,10 @@ export class DocumentIngestionService {
    * 4. Generate embeddings for contextualized chunks
    * 5. Store in vector DB (which will also use BM25 via hybrid search = Contextual BM25)
    * 
-   * @param content - The full document content
+   * @param content - The full document content (used for context generation, not stored)
    * @param metadata - Document metadata
    * @param options - Chunking and contextualization options
-   * @returns Array of chunk IDs
+   * @returns Array of chunk IDs (parentDocumentId links them together)
    */
   async ingestDocumentWithContextualRetrieval(
     content: string,
@@ -134,17 +138,17 @@ export class DocumentIngestionService {
       if (useContextual && this.contextService) {
         console.log('Generating contextual information for chunks...');
         
+        const chunkContents = chunks.map(c => c.content);
+        
         if (useRateLimit) {
           contexts = await this.contextService.generateContextsWithRateLimit(
-            content,
-            chunks.map(c => c.content),
+            chunkContents, // Pass array of chunks, not whole document
             metadata,
             batchSize
           );
         } else {
           contexts = await this.contextService.generateContextsForChunks(
-            content,
-            chunks.map(c => c.content),
+            chunkContents, // Pass array of chunks, not whole document
             metadata
           );
         }

@@ -54,6 +54,7 @@ async function initializeServices() {
         model: process.env.CONTEXT_MODEL || 'gpt-4o-mini',
         maxTokens: parseInt(process.env.CONTEXT_MAX_TOKENS || '100'),
         temperature: parseFloat(process.env.CONTEXT_TEMPERATURE || '0.3'),
+        windowSize: parseInt(process.env.CONTEXT_WINDOW_SIZE || '1'),
       });
       console.log('✅ Contextual Retrieval service initialized');
     }
