@@ -14,7 +14,7 @@
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "allowJs": true,
-    "types": ["bun-types"]
+    "types": ["bun-types", "jest"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

@@ -122,10 +122,14 @@ describe("chunkDocument", () => {
     const content = Array(10).fill("word").map((w, i) => `${w}${i}`).join(" ");
     const result = chunkDocument(content, 10, 2);
     
-    expect(result).toHaveLength(1);
+    // With overlap=2, after first chunk (0-10), next starts at 8 (10-2)
+    // So we get 2 chunks: chunk 0 (words 0-9) and chunk 1 (words 8-9)
+    expect(result).toHaveLength(2);
     expect(result[0].content).toBe(content);
     expect(result[0].startOffset).toBe(0);
     expect(result[0].endOffset).toBe(10);
+    expect(result[1].startOffset).toBe(8);
+    expect(result[1].endOffset).toBe(10);
   });
 
   test("should preserve exact word content in chunks", () => {
