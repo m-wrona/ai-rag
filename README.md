@@ -144,6 +144,18 @@ See the [Contextual Retrieval](#contextual-retrieval) section below for detailed
 
 This project implements [Anthropic's Contextual Retrieval](https://www.anthropic.com/engineering/contextual-retrieval) technique using OpenAI instead of Claude.
 
+## Context creation
+
+Context for each chunk can be created using simple prompt like presented by [Anthropic cookbook](https://github.com/anthropics/claude-cookbooks/blob/main/skills/contextual-embeddings/contextual-rag-lambda-function/lambda_function.py#L11).
+
+However this approach may be insufficient for large documents. In this case possible strategies are:
+1) Create summary of each chunk and attach it as a context to each current chunk which is being processed. 
+2) Use sliding window and attach context of N previous chunks.
+3) Create summary of the whole document and attach it a context (or at least part of the context)
+4) Hybrid approach:
+   a) for small documents create context based on the whole content.
+   b) for huge docs use one of strategies above
+
 ### Quick Start
 
 ```bash
